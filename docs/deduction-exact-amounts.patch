@@ -1,0 +1,56 @@
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1750,6 +1750,24 @@
+       return deduction;
+     }
+ 
++    function reserveExactBreakdown(breakdown) {
++      const deduction = [];
++      for (const item of breakdown) {
++        const layer = vaultData.find(v => v.value === item.value);
++        if (!layer || layer.logicalCount < item.count) {
++          deduction.forEach(value => {
++            const rollbackLayer = vaultData.find(v => v.value === value);
++            if (rollbackLayer) rollbackLayer.logicalCount += 1;
++          });
++          return null;
++        }
++
++        layer.logicalCount -= item.count;
++        for (let i = 0; i < item.count; i++) deduction.push(item.value);
++      }
++      return deduction;
++    }
++
+     function mergeBreakdowns(...groups) {
+       const counts = new Map();
+       groups.flat().forEach(item => {
+@@ -1761,15 +1779,22 @@
+     }
+ 
+     function prepareDeduction(amount) {
+-      const direct = reserveDeduction(amount);
+-      if (direct) return direct;
++      const target = Math.floor(amount);
++      const balance = Math.floor(state.balance);
++      if (!Number.isFinite(target) || target <= 0 || target > balance) return null;
++
++      const remaining = balance - target;
++      const spendBreakdown = getBillBreakdown(target);
+ 
+-      const remaining = state.balance - amount;
+-      if (remaining < 0) return null;
++      // Rebuild the vault as: bills kept after spending + bills selected for this spending.
++      // This makes deduction depend on the account balance instead of the current visual
++      // denomination mix, so every integer amount <= balance can be paid exactly.
++      buildMoneyVaultFromBreakdown(
++        mergeBreakdowns(getBillBreakdown(remaining), spendBreakdown),
++        false
++      );
+ 
+-      const rearranged = mergeBreakdowns(getBillBreakdown(remaining), getBillBreakdown(amount));
+-      buildMoneyVaultFromBreakdown(rearranged, false);
+-      return reserveDeduction(amount);
++      return reserveExactBreakdown(spendBreakdown);
+     }
