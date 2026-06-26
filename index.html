@@ -1,0 +1,2746 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>黑暗金库 | 记账系统</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23101114'/%3E%3Cpath d='M18 22h28v20H18z' fill='%233ddc84'/%3E%3Cpath d='M23 27h18v10H23z' fill='%23101114' opacity='.35'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101114;
+      --panel: rgba(20, 22, 27, 0.86);
+      --panel-strong: rgba(12, 13, 16, 0.94);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #f2f4f5;
+      --muted: #a8afb7;
+      --danger: #ee4d4d;
+      --danger-dark: #9d171d;
+      --money: #3ddc84;
+      --amber: #f4b740;
+      --blue: #5ca8ff;
+      --violet: #9b6dff;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      user-select: none;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      min-height: 36px;
+      padding: 7px 12px;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.18s ease, border-color 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    button:hover { background: rgba(255, 255, 255, 0.14); }
+    button:active { transform: scale(0.97); }
+    button svg { width: 15px; height: 15px; stroke-width: 2.2; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    input, select {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      outline: none;
+      padding: 7px 10px;
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.28);
+    }
+    input:focus, select:focus {
+      border-color: rgba(92, 168, 255, 0.8);
+      box-shadow: 0 0 0 3px rgba(92, 168, 255, 0.16);
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 2;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(310px, 370px) 1fr minmax(310px, 370px);
+      gap: 14px;
+      padding: 14px;
+      pointer-events: none;
+    }
+
+    .panel {
+      pointer-events: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      min-height: 0;
+    }
+
+    .left-panel, .right-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 14px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .title {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .panel-body {
+      padding: 12px 14px 14px;
+      overflow: auto;
+      scrollbar-width: thin;
+    }
+
+    /* Month Picker */
+    .month-nav {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .month-nav button { min-height: 32px; padding: 5px 8px; }
+    .month-nav span {
+      text-align: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    /* Balance */
+    .balance {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+      padding: 12px 14px 14px;
+      background: var(--panel-strong);
+      border-bottom: 1px solid var(--line);
+    }
+    .balance-label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    .balance-value {
+      font-size: clamp(28px, 4vw, 40px);
+      line-height: 1.05;
+      font-weight: 800;
+      letter-spacing: 0;
+      color: var(--money);
+      word-break: break-all;
+    }
+
+    /* Summary Grid */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 0 14px 12px;
+      background: var(--panel-strong);
+      border-bottom: 1px solid var(--line);
+    }
+    .metric {
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 15px;
+      overflow-wrap: anywhere;
+    }
+
+    /* Form */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .form-grid .wide { grid-column: 1 / -1; }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      margin-bottom: 10px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    .segmented button {
+      min-height: 32px;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+    }
+    .segmented button.active.expense {
+      color: white;
+      background: linear-gradient(135deg, var(--danger), var(--danger-dark));
+    }
+    .segmented button.active.income {
+      color: #03160b;
+      background: linear-gradient(135deg, #64f0a0, var(--money));
+    }
+
+    .primary-expense {
+      width: 100%;
+      margin-top: 10px;
+      min-height: 42px;
+      background: linear-gradient(135deg, var(--danger), var(--danger-dark));
+      font-weight: 800;
+    }
+    .primary-expense:hover { background: linear-gradient(135deg, #ff6262, var(--danger-dark)); }
+
+    .primary-income {
+      width: 100%;
+      margin-top: 10px;
+      min-height: 42px;
+      color: #03160b;
+      background: linear-gradient(135deg, #64f0a0, var(--money));
+      font-weight: 800;
+    }
+    .primary-income:hover { color: #03160b; background: linear-gradient(135deg, #86ffb8, var(--money)); }
+
+    .tool-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .tool-row button {
+      min-width: 0;
+      padding-inline: 6px;
+      font-size: 12px;
+    }
+
+    /* Center Controls */
+    .center-controls {
+      align-self: end;
+      justify-self: center;
+      width: min(560px, 100%);
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .scene-panel {
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .scene-stats {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .scene-stats strong { color: var(--text); }
+    .speed-control {
+      display: grid;
+      grid-template-columns: auto 120px;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    input[type="range"] {
+      accent-color: var(--violet);
+      padding: 0;
+      min-height: 22px;
+      cursor: pointer;
+    }
+
+    /* Right Panel Lists */
+    .section-title {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title button {
+      min-height: 28px;
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .budget-list, .layer-list, .ledger-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .budget-item, .layer-item, .tx-item {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .budget-item { padding: 8px 10px; }
+
+    .budget-top, .layer-item, .tx-main {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .budget-name, .tx-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    .budget-value {
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .progress {
+      height: 6px;
+      margin-top: 6px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: var(--money);
+      transition: width 0.2s ease, background 0.2s ease;
+    }
+    .budget-edit {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .budget-edit input { min-height: 30px; font-size: 12px; }
+    .budget-edit button { min-height: 30px; padding: 4px 8px; }
+
+    .layer-item {
+      padding: 8px 10px;
+      cursor: context-menu;
+    }
+    .layer-item:hover { background: rgba(255, 255, 255, 0.1); }
+    .layer-left {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .swatch {
+      width: 11px;
+      height: 11px;
+      border-radius: 3px;
+      flex: 0 0 auto;
+    }
+
+    .tx-toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .tx-toolbar input { min-height: 34px; font-size: 12px; }
+
+    .tx-item { padding: 8px 10px; position: relative; }
+    .tx-item:hover { background: rgba(255, 255, 255, 0.06); }
+    .tx-meta {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tx-actions {
+      display: none;
+      gap: 4px;
+      margin-left: auto;
+    }
+    .tx-item:hover .tx-actions { display: flex; }
+    .tx-actions button {
+      min-height: 24px;
+      padding: 3px 6px;
+      font-size: 11px;
+      border-radius: 5px;
+    }
+    .tx-actions .btn-edit { color: var(--blue); }
+    .tx-actions .btn-del { color: var(--danger); }
+
+    .amount-expense { color: #ff7a7a; font-weight: 800; }
+    .amount-income { color: var(--money); font-weight: 800; }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 7px;
+      padding: 16px 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* Context Menu */
+    #context-menu {
+      position: fixed;
+      display: none;
+      min-width: 170px;
+      z-index: 20;
+      padding: 5px;
+      border-radius: 8px;
+      border: 1px solid rgba(238, 77, 77, 0.45);
+      background: rgba(12, 13, 16, 0.96);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.48);
+    }
+    .menu-item {
+      width: 100%;
+      justify-content: flex-start;
+      color: #ff8d8d;
+      background: transparent;
+      border-radius: 6px;
+    }
+
+    /* Charts Section */
+    .charts-section {
+      margin-top: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    .chart-wrapper {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 7px;
+      padding: 8px;
+    }
+    .chart-wrapper canvas { width: 100% !important; max-height: 200px; }
+
+    /* Edit Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 30;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 20px;
+      min-width: 340px;
+      max-width: 440px;
+      box-shadow: var(--shadow);
+    }
+    .modal h3 { margin: 0 0 14px; }
+    .modal .form-grid { margin-bottom: 14px; }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .modal-actions .btn-save { background: linear-gradient(135deg, var(--blue), #3d7ce8); }
+    .modal-actions .btn-cancel { background: rgba(255,255,255,0.08); }
+
+    /* Category Manager */
+    .cat-manager { margin-top: 4px; }
+    .cat-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      background: rgba(0,0,0,0.15);
+    }
+    .cat-item input { min-height: 30px; font-size: 12px; }
+    .cat-item input[type="color"] { width: 36px; padding: 2px; cursor: pointer; }
+
+    /* Keyboard hint */
+    .kbd-hint {
+      color: var(--muted);
+      font-size: 10px;
+      margin-top: 8px;
+      text-align: center;
+      opacity: 0.6;
+    }
+
+    .danger-text { color: #ff8d8d; }
+
+    /* Onboarding Overlay */
+    .onboarding-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgba(0,0,0,0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.35s ease;
+    }
+    .onboarding-overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .onboarding-card {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px 30px 24px;
+      max-width: 420px;
+      width: 90vw;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+      text-align: center;
+    }
+    .onboarding-card .icon-big {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .onboarding-card h2 {
+      margin: 0 0 6px;
+      font-size: 22px;
+    }
+    .onboarding-card .steps {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 10px;
+      margin: 18px 0;
+    }
+    .onboarding-step {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 12px 8px;
+      background: rgba(255,255,255,0.03);
+    }
+    .onboarding-step .step-icon {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 24px;
+    }
+    .onboarding-step .step-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .onboarding-step .step-desc {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .onboarding-btn {
+      width: 100%;
+      min-height: 44px;
+      margin-top: 10px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #5ca8ff, #9b6dff);
+      font-size: 15px;
+    }
+    .onboarding-skip {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 30px;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 10px 16px;
+      font-size: 13px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.4);
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .toast.success { border-color: rgba(61,220,132,0.5); }
+
+    /* Asset Init Modal */
+    .asset-init-card {
+      text-align: center;
+    }
+    .asset-init-card .icon-big {
+      font-size: 44px;
+      margin-bottom: 6px;
+    }
+    .asset-init-card h2 {
+      margin: 0 0 4px;
+      font-size: 20px;
+    }
+    .asset-init-card .init-desc {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 16px;
+      line-height: 1.5;
+    }
+    .asset-init-card .init-input-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .asset-init-card .init-input-wrap .currency {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--money);
+    }
+    .asset-init-card .init-input-wrap input {
+      width: 200px;
+      min-height: 48px;
+      font-size: 28px;
+      font-weight: 800;
+      text-align: center;
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0,0,0,0.35);
+    }
+    .asset-init-card .init-input-wrap input:focus {
+      border-color: var(--money);
+      box-shadow: 0 0 0 4px rgba(61,220,132,0.12);
+    }
+    .asset-init-card .quick-amounts {
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .asset-init-card .quick-amounts button {
+      min-height: 32px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 2px solid var(--line);
+      background: rgba(255,255,255,0.04);
+    }
+    .asset-init-card .quick-amounts button:hover {
+      background: rgba(61,220,132,0.12);
+      border-color: rgba(61,220,132,0.5);
+    }
+    .asset-init-card .init-confirm {
+      width: 100%;
+      min-height: 44px;
+      font-weight: 800;
+      font-size: 15px;
+      background: linear-gradient(135deg, #3ddc84, #1d8f50);
+      color: #03160b;
+    }
+    .asset-init-card .init-skip {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 32px;
+    }
+
+    /* Tutorial Choice Dialog */
+    .tutorial-choice-card {
+      text-align: center;
+    }
+    .tutorial-choice-card h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+    .tutorial-choice-card .choice-desc {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 18px;
+      line-height: 1.6;
+    }
+    .tutorial-choice-card .choice-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .tutorial-choice-card .choice-yes {
+      min-height: 44px;
+      font-weight: 800;
+      font-size: 14px;
+      background: linear-gradient(135deg, #5ca8ff, #9b6dff);
+    }
+    .tutorial-choice-card .choice-no {
+      min-height: 44px;
+      font-weight: 700;
+      font-size: 14px;
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; }
+      to { opacity: 0; transform: translateY(-10px); }
+    }
+
+    /* Help Button */
+    .help-btn {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      z-index: 30;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      font-size: 18px;
+      font-weight: 800;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    }
+    .help-drawer {
+      position: fixed;
+      bottom: 70px;
+      right: 18px;
+      z-index: 30;
+      width: 280px;
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+      display: none;
+    }
+    .help-drawer.show { display: block; }
+    .help-drawer h3 { margin: 0 0 10px; font-size: 14px; }
+    .help-drawer .help-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 5px 0;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .help-drawer .help-item:last-child { border-bottom: none; }
+    .help-drawer .help-item kbd {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: var(--text);
+    }
+    .help-drawer .help-item span { line-height: 1.4; }
+
+    /* Pulse glow for submit button */
+    @keyframes pulseBorder {
+      0%,100% { box-shadow: 0 0 0 0px rgba(238,77,77,0.5); }
+      50% { box-shadow: 0 0 0 6px rgba(238,77,77,0); }
+    }
+    .primary-expense.pulse-hint {
+      animation: pulseBorder 2s ease-in-out 3;
+    }
+
+    /* Empty state with CTA */
+    .empty-cta {
+      border: 1px dashed var(--line);
+      border-radius: 7px;
+      padding: 14px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .empty-cta .cta-hint {
+      display: block;
+      margin-top: 6px;
+      color: var(--blue);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .empty-cta .cta-hint:hover { text-decoration: underline; }
+
+    /* Form hint below submit */
+    .form-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Responsive */
+    @media (max-width: 1120px) {
+      body { overflow: auto; }
+      #canvas-container { height: 100vh; }
+      .shell {
+        min-height: 100vh;
+        height: auto;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(200px, 30vh) auto;
+        padding: 8px;
+        gap: 8px;
+      }
+      .center-controls {
+        width: 100%;
+        order: -1;
+        align-self: start;
+      }
+      .left-panel, .right-panel { max-height: none; }
+    }
+    @media (max-width: 560px) {
+      .shell { padding: 6px; gap: 6px; }
+      .form-grid, .summary-grid, .tool-row, .tx-toolbar, .scene-panel {
+        grid-template-columns: 1fr;
+      }
+      .speed-control { grid-template-columns: 1fr; }
+      .balance { grid-template-columns: 1fr; }
+      .panel-header, .panel-body, .balance, .summary-grid { padding-inline: 10px; }
+      .modal { min-width: auto; width: 90vw; }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <main class="shell">
+    <!-- LEFT PANEL: Account + Form + Stats -->
+    <section class="panel left-panel" aria-label="记账">
+      <div class="panel-header">
+        <h1 class="title">黑暗金库</h1>
+        <div class="subtitle">记账 · 3D可视化 · 每一笔钱都在物理金库中可见</div>
+      </div>
+
+      <div class="month-nav">
+        <button id="month-prev" title="上个月"><i data-lucide="chevron-left"></i></button>
+        <span id="month-label"></span>
+        <button id="month-next" title="下个月"><i data-lucide="chevron-right"></i></button>
+      </div>
+
+      <div class="balance">
+        <div>
+          <div class="balance-label">当前余额</div>
+          <div class="balance-value" id="balance-value">¥0</div>
+        </div>
+        <button id="rebuild-btn" title="重建金库"><i data-lucide="refresh-cw"></i></button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="metric"><span>本月收入</span><strong id="month-income">¥0</strong></div>
+        <div class="metric"><span>本月支出</span><strong id="month-expense" class="danger-text">¥0</strong></div>
+        <div class="metric"><span>本月结余</span><strong id="month-net">¥0</strong></div>
+        <div class="metric"><span>纸币数量</span><strong id="bill-total">0 张</strong></div>
+      </div>
+
+      <div class="panel-body">
+        <div class="segmented" role="tablist">
+          <button id="expense-tab" class="active expense" type="button"><i data-lucide="arrow-down-circle"></i>支出</button>
+          <button id="income-tab" type="button"><i data-lucide="arrow-up-circle"></i>收入</button>
+        </div>
+
+        <form id="tx-form" autocomplete="off">
+          <div class="form-grid">
+            <div class="wide">
+              <label for="amount-input">金额（元）</label>
+              <input id="amount-input" type="number" min="1" step="1" inputmode="numeric" placeholder="例如 38">
+            </div>
+            <div>
+              <label for="category-input">分类</label>
+              <select id="category-input"></select>
+            </div>
+            <div>
+              <label for="date-input">日期</label>
+              <input id="date-input" type="date">
+            </div>
+            <div class="wide">
+              <label for="note-input">备注</label>
+              <input id="note-input" type="text" maxlength="40" placeholder="可选">
+            </div>
+          </div>
+          <button id="submit-btn" class="primary-expense" type="button"><i data-lucide="flame"></i>记录支出并让钱消失</button>
+          <div class="form-hint">点击后，对应金额的纸币将在3D金库中<b>飞起并坠入黑暗</b></div>
+        </form>
+
+        <div class="tool-row">
+          <button id="undo-btn" title="撤销最新流水 (Ctrl+Z)"><i data-lucide="undo-2"></i>撤销</button>
+          <button id="export-btn" title="导出 CSV"><i data-lucide="download"></i>导出</button>
+          <button id="reset-btn" title="清空本地数据"><i data-lucide="trash-2"></i>清空</button>
+        </div>
+
+        <div class="charts-section">
+          <h3 class="section-title">
+            本月支出分布
+            <button id="cat-mgr-btn" title="管理分类"><i data-lucide="settings"></i></button>
+          </h3>
+          <div class="chart-wrapper">
+            <canvas id="pie-chart"></canvas>
+          </div>
+          <div style="margin-top:8px;">
+            <div class="chart-wrapper">
+              <canvas id="trend-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="kbd-hint">快捷键: N=记账 S=统计 C=分类 Ctrl+Z=撤销</div>
+      </div>
+    </section>
+
+    <!-- CENTER: 3D Scene Controls -->
+    <section class="center-controls">
+      <div class="panel scene-panel" aria-label="金库状态">
+        <div class="scene-stats" id="scene-stats">
+          <strong>物理金库</strong><br>
+          等待生成
+        </div>
+        <div class="speed-control">
+          <span>消失倍速 <strong id="speed-val">1.0x</strong></span>
+          <input id="speed-slider" type="range" min="0.2" max="5" step="0.1" value="1">
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Budgets + Layers + History -->
+    <section class="panel right-panel" aria-label="预算和流水">
+      <div class="panel-header">
+        <h2 class="title">预算与流水</h2>
+        <div class="subtitle">右键面额图层可直接让纸币坠入黑暗。</div>
+      </div>
+      <div class="panel-body">
+        <h3 class="section-title">
+          分类预算
+          <button id="reset-budgets-btn" title="重置预算"><i data-lucide="rotate-ccw"></i></button>
+        </h3>
+        <div id="budget-list" class="budget-list"></div>
+
+        <h3 class="section-title" style="margin-top:14px;">金库图层</h3>
+        <div id="layer-list" class="layer-list"></div>
+
+        <h3 class="section-title" style="margin-top:14px;">流水记录</h3>
+        <div class="tx-toolbar">
+          <div style="display:flex;gap:4px;grid-column:1/-1;">
+            <input id="search-input" type="search" placeholder="搜索分类或备注" style="flex:1;">
+            <input id="date-from" type="date" style="width:120px;flex-shrink:0;" title="开始日期">
+            <input id="date-to" type="date" style="width:120px;flex-shrink:0;" title="结束日期">
+          </div>
+          <button id="clear-search-btn" title="清除筛选" style="justify-self:end;"><i data-lucide="x"></i></button>
+        </div>
+        <div id="ledger-list" class="ledger-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Context Menu -->
+  <div id="context-menu">
+    <button class="menu-item" id="menu-spend-one" type="button"><i data-lucide="minus"></i>删除一张</button>
+    <button class="menu-item" id="menu-spend-all" type="button"><i data-lucide="flame"></i>清空该面额</button>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <h3>编辑流水</h3>
+      <form id="edit-form" autocomplete="off">
+        <div class="form-grid">
+          <div>
+            <label for="edit-type">类型</label>
+            <select id="edit-type"><option value="expense">支出</option><option value="income">收入</option></select>
+          </div>
+          <div>
+            <label for="edit-amount">金额</label>
+            <input id="edit-amount" type="number" min="1" step="1" inputmode="numeric">
+          </div>
+          <div>
+            <label for="edit-category">分类</label>
+            <select id="edit-category"></select>
+          </div>
+          <div>
+            <label for="edit-date">日期</label>
+            <input id="edit-date" type="date">
+          </div>
+          <div class="wide">
+            <label for="edit-note">备注</label>
+            <input id="edit-note" type="text" maxlength="40">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="edit-cancel">取消</button>
+          <button type="submit" class="btn-save">保存修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Category Manager Modal -->
+  <div class="modal-overlay" id="cat-modal">
+    <div class="modal">
+      <h3>管理分类</h3>
+      <div id="cat-list" class="cat-manager"></div>
+      <div style="margin-top:10px;">
+        <button id="add-cat-btn" style="width:100%;"><i data-lucide="plus"></i>添加分类</button>
+      </div>
+      <div class="modal-actions" style="margin-top:12px;">
+        <button type="button" class="btn-cancel" id="cat-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome Overlay (first visit only) -->
+  <div class="onboarding-overlay" id="onboarding-overlay" style="display:none;">
+    <div class="onboarding-card">
+      <div class="icon-big">🏦</div>
+      <h2>新手教程</h2>
+      <p style="color:var(--muted);font-size:13px;margin:4px 0 0;line-height:1.5;">
+        你已经初始化了金库资产。按下图三步走：<br>
+        <b style="color:var(--money);">记账</b> → <b style="color:#ff8d8d;">观察纸币消失</b> → <b style="color:#5ca8ff;">分析数据</b>
+      </p>
+      <div class="steps">
+        <div class="onboarding-step">
+          <span class="step-icon">💰</span>
+          <div class="step-title">第1步：记账</div>
+          <div class="step-desc">在左侧输入金额和分类，点击记录</div>
+        </div>
+        <div class="onboarding-step">
+          <span class="step-icon">👁️</span>
+          <div class="step-title">第2步：观察</div>
+          <div class="step-desc">纸币从金库中飞起，化为黑暗粒子</div>
+        </div>
+        <div class="onboarding-step">
+          <span class="step-icon">📊</span>
+          <div class="step-title">第3步：分析</div>
+          <div class="step-desc">右侧查看预算和流水，左侧看图表</div>
+        </div>
+      </div>
+      <button class="onboarding-btn" id="onboarding-start">
+        <i data-lucide="sparkles"></i> 开始记账，让钱坠入黑暗
+      </button>
+      <button class="onboarding-skip" id="onboarding-skip">跳过教程</button>
+    </div>
+  </div>
+
+  <!-- Asset Init Overlay -->
+  <div class="onboarding-overlay" id="asset-init-overlay" style="display:none;">
+    <div class="onboarding-card asset-init-card">
+      <div class="icon-big">🏦</div>
+      <h2>初始化你的金库资产</h2>
+      <p class="init-desc">
+        请输入你目前的<b style="color:var(--text);">真实总资产</b>（现金+存款+理财等）<br>
+        后续每笔收支都会在3D金库中实时反映。
+      </p>
+      <div class="init-input-wrap">
+        <span class="currency">¥</span>
+        <input id="asset-init-input" type="number" min="0" step="1" inputmode="numeric" placeholder="例如 100000">
+      </div>
+      <div class="quick-amounts">
+        <button type="button" data-quick="5000">5千</button>
+        <button type="button" data-quick="10000">1万</button>
+        <button type="button" data-quick="50000">5万</button>
+        <button type="button" data-quick="100000">10万</button>
+      </div>
+      <button class="init-confirm" id="asset-init-confirm" disabled>
+        <i data-lucide="check-circle"></i> 确认，让纸币堆满金库
+      </button>
+      <button class="init-skip" id="asset-init-skip">稍后手动添加</button>
+    </div>
+  </div>
+
+  <!-- Tutorial Choice Overlay -->
+  <div class="onboarding-overlay" id="tutorial-choice-overlay" style="display:none;">
+    <div class="onboarding-card tutorial-choice-card">
+      <div class="icon-big">📖</div>
+      <h2>需要新手教程吗？</h2>
+      <p class="choice-desc">
+        教程会带你了解：如何记账观察3D效果、<br>
+        如何在右侧设预算查看流水、如何使用图表分析消费。
+      </p>
+      <div class="choice-buttons">
+        <button class="choice-yes" id="tutorial-choice-yes">
+          <i data-lucide="play-circle"></i> 看教程
+        </button>
+        <button class="choice-no" id="tutorial-choice-no">
+          跳过，我自己摸索
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Help Button -->
+  <button class="help-btn" id="help-btn" title="使用帮助">?</button>
+  <div class="help-drawer" id="help-drawer">
+    <h3>使用指南</h3>
+    <div class="help-item"><kbd>记账</kbd><span>左侧输入金额和分类，点「记录支出」</span></div>
+    <div class="help-item"><kbd>可视化</kbd><span>支出后纸币从3D金库中消失</span></div>
+    <div class="help-item"><kbd>右键图层</kbd><span>右键右侧图层可快速删除纸币</span></div>
+    <div class="help-item"><kbd>拖拽旋转</kbd><span>用鼠标拖拽3D场景查看金库</span></div>
+    <div class="help-item"><kbd>预算控制</kbd><span>在右侧为每个分类设置月度预算</span></div>
+    <div class="help-item"><kbd>Ctrl+Z</kbd><span>撤销最新一笔流水</span></div>
+    <div class="help-item"><kbd>编辑删除</kbd><span>鼠标悬停流水记录可编辑或删除</span></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ==================== INDEXED DB ====================
+    const DB_NAME = 'darkVaultDB';
+    const DB_VERSION = 1;
+    const STORE_STATE = 'state';
+    const STORE_TX = 'transactions';
+
+    let db = null;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (event) => {
+          const d = event.target.result;
+          if (!d.objectStoreNames.contains(STORE_STATE)) d.createObjectStore(STORE_STATE);
+          if (!d.objectStoreNames.contains(STORE_TX)) d.createObjectStore(STORE_TX, { keyPath: 'id' });
+        };
+        req.onsuccess = (event) => { db = event.target.result; resolve(db); };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function dbPut(storeName, data, key = 'main') {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        if (storeName === STORE_TX) {
+          store.put(data);
+        } else {
+          store.put(data, key);
+        }
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function dbGet(storeName, key = 'main') {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function dbGetAll(storeName) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function dbDelete(storeName, key) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.delete(key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function dbClear(storeName) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.clear();
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    // ==================== CONSTANTS & STATE ====================
+    const money = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 });
+    const todayIso = () => new Date().toISOString().slice(0, 10);
+    const monthKey = (d = new Date()) => d.toISOString().slice(0, 7);
+    const formatMonth = (ym) => {
+      const [y, m] = ym.split('-');
+      return `${y}年${parseInt(m)}月`;
+    };
+
+    const defaultCategories = [
+      { name: '餐饮', color: '#f56f6f', budget: 2400 },
+      { name: '交通', color: '#5ca8ff', budget: 800 },
+      { name: '购物', color: '#f4b740', budget: 1800 },
+      { name: '住房', color: '#9b6dff', budget: 4200 },
+      { name: '娱乐', color: '#ff7ac3', budget: 900 },
+      { name: '医疗', color: '#53d6c5', budget: 600 },
+      { name: '学习', color: '#95d15f', budget: 700 },
+      { name: '其他', color: '#c4cad1', budget: 1000 }
+    ];
+
+    const defaultIncomeCategories = [
+      { name: '工资', color: '#3ddc84', budget: 0 },
+      { name: '奖金', color: '#5ca8ff', budget: 0 },
+      { name: '理财', color: '#f4b740', budget: 0 },
+      { name: '兼职', color: '#9b6dff', budget: 0 },
+      { name: '报销', color: '#53d6c5', budget: 0 },
+      { name: '其他收入', color: '#c4cad1', budget: 0 }
+    ];
+
+    const denominations = [
+      { value: 100, bg: '#e7a6a6', dark: '#c34d58' },
+      { value: 50, bg: '#a8e8bf', dark: '#1d8f50' },
+      { value: 20, bg: '#f1c391', dark: '#b86321' },
+      { value: 10, bg: '#9fc6ef', dark: '#2b659c' },
+      { value: 5, bg: '#c2a7ef', dark: '#6a2d9e' },
+      { value: 1, bg: '#d4e98f', dark: '#6f7a30' }
+    ];
+
+    function defaultState() {
+      return {
+        balance: 0,
+        categories: JSON.parse(JSON.stringify(defaultCategories)),
+        incomeCategories: JSON.parse(JSON.stringify(defaultIncomeCategories)),
+        budgets: Object.fromEntries(defaultCategories.map(c => [c.name, c.budget])),
+        currentMonth: monthKey(),
+        hasVisited: false,
+        hasInitialized: false
+      };
+    }
+
+    let state = defaultState();
+    let transactions = [];
+    let transactionMode = 'expense';
+    let globalSpeedMultiplier = 1;
+    let audioCtx = null;
+
+    // Three.js data
+    let vaultData = [];
+    let activeEffects = [];
+    let actionQueue = [];
+    let isQueueRunning = false;
+    let contextTargetValue = null;
+    let editTargetId = null;
+    let firstExpenseDone = false;
+
+    // DOM refs
+    const el = {
+      balance: document.getElementById('balance-value'),
+      monthIncome: document.getElementById('month-income'),
+      monthExpense: document.getElementById('month-expense'),
+      monthNet: document.getElementById('month-net'),
+      billTotal: document.getElementById('bill-total'),
+      expenseTab: document.getElementById('expense-tab'),
+      incomeTab: document.getElementById('income-tab'),
+      form: document.getElementById('tx-form'),
+      amount: document.getElementById('amount-input'),
+      category: document.getElementById('category-input'),
+      date: document.getElementById('date-input'),
+      note: document.getElementById('note-input'),
+      submit: document.getElementById('submit-btn'),
+      budgetList: document.getElementById('budget-list'),
+      layerList: document.getElementById('layer-list'),
+      ledgerList: document.getElementById('ledger-list'),
+      search: document.getElementById('search-input'),
+      dateFrom: document.getElementById('date-from'),
+      dateTo: document.getElementById('date-to'),
+      sceneStats: document.getElementById('scene-stats'),
+      speedSlider: document.getElementById('speed-slider'),
+      speedVal: document.getElementById('speed-val'),
+      contextMenu: document.getElementById('context-menu'),
+      monthLabel: document.getElementById('month-label'),
+      pieCanvas: document.getElementById('pie-chart'),
+      trendCanvas: document.getElementById('trend-chart')
+    };
+
+    el.date.value = todayIso();
+
+    // ==================== DATA PERSISTENCE ====================
+    async function saveAll() {
+      try {
+        await dbPut(STORE_STATE, state);
+        // Save transactions in batches for IndexedDB
+        for (const tx of transactions) {
+          await dbPut(STORE_TX, tx);
+        }
+      } catch (e) {
+        console.warn('Save failed:', e);
+      }
+    }
+
+    async function loadAll() {
+      try {
+        const savedState = await dbGet(STORE_STATE);
+        if (savedState) {
+          state = {
+            ...defaultState(),
+            balance: Number.isFinite(savedState.balance) ? Math.max(0, Math.floor(savedState.balance)) : 0,
+            categories: Array.isArray(savedState.categories) ? savedState.categories : defaultState().categories,
+            incomeCategories: Array.isArray(savedState.incomeCategories) ? savedState.incomeCategories : defaultState().incomeCategories,
+            budgets: { ...defaultState().budgets, ...(savedState.budgets || {}) },
+            currentMonth: savedState.currentMonth || monthKey(),
+            hasVisited: savedState.hasVisited !== undefined ? savedState.hasVisited : false,
+            hasInitialized: savedState.hasInitialized !== undefined ? savedState.hasInitialized : false
+          };
+        }
+        transactions = await dbGetAll(STORE_TX);
+        if (!Array.isArray(transactions)) transactions = [];
+      } catch (e) {
+        console.warn('Load failed, using defaults:', e);
+        state = defaultState();
+        transactions = [
+          { id: crypto.randomUUID(), type: 'income', amount: 12345, category: '初始余额', note: '金库启动', date: todayIso(), createdAt: Date.now() }
+        ];
+        await saveAll();
+      }
+    }
+
+    // ==================== AUDIO ====================
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(kind) {
+      initAudio();
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (kind === 'income') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(260, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.32);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.34);
+        return;
+      }
+
+      osc.type = 'sawtooth';
+      const duration = 0.58 / globalSpeedMultiplier;
+      osc.frequency.setValueAtTime(120 + Math.random() * 80, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(12, audioCtx.currentTime + duration);
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.05 / globalSpeedMultiplier);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // ==================== COMPUTED DATA ====================
+    function monthlyTransactions(monthOverride) {
+      const key = monthOverride || state.currentMonth;
+      return transactions.filter(tx => tx.date && tx.date.startsWith(key));
+    }
+
+    function categorySpendMap() {
+      const map = {};
+      state.categories.forEach(c => { map[c.name] = 0; });
+      monthlyTransactions().forEach(tx => {
+        if (tx.type === 'expense' && map[tx.category] !== undefined) map[tx.category] += tx.amount;
+      });
+      return map;
+    }
+
+    // ==================== THREE.JS SETUP ====================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x101114, 0.017);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.58);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.05);
+    dirLight.position.set(6, 14, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.left = -18;
+    dirLight.shadow.camera.right = 18;
+    dirLight.shadow.camera.top = 12;
+    dirLight.shadow.camera.bottom = -12;
+    scene.add(dirLight);
+
+    const glowLight = new THREE.PointLight(0x7d4dff, 1.1, 22);
+    glowLight.position.set(-5, 5, -4);
+    scene.add(glowLight);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(220, 220),
+      new THREE.MeshStandardMaterial({ color: 0x17191d, roughness: 0.88, metalness: 0.12 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const vaultRing = new THREE.Mesh(
+      new THREE.TorusGeometry(5.4, 0.018, 12, 120),
+      new THREE.MeshBasicMaterial({ color: 0x5ca8ff, transparent: true, opacity: 0.32 })
+    );
+    vaultRing.rotation.x = Math.PI / 2;
+    vaultRing.position.y = 0.018;
+    scene.add(vaultRing);
+
+    function createReferenceCube() {
+      const size = 0.57;
+      const cube = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        [
+          new THREE.MeshStandardMaterial({ color: 0xc41e3a }),
+          new THREE.MeshStandardMaterial({ color: 0xff5800 }),
+          new THREE.MeshStandardMaterial({ color: 0x0051ba }),
+          new THREE.MeshStandardMaterial({ color: 0x009e60 }),
+          new THREE.MeshStandardMaterial({ color: 0xffffff }),
+          new THREE.MeshStandardMaterial({ color: 0xffd500 })
+        ]
+      );
+      cube.castShadow = true;
+      cube.receiveShadow = true;
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(size, size, size, 3, 3, 3)),
+        new THREE.LineBasicMaterial({ color: 0x111111 })
+      );
+      cube.add(edges);
+      cube.position.set(0, size / 2, 4.15);
+      cube.rotation.y = -Math.PI / 4;
+      return cube;
+    }
+    scene.add(createReferenceCube());
+
+    const billGeo = new THREE.BoxGeometry(1.55, 0.001, 0.77);
+    const denomMaterialsMap = {};
+
+    function createBanknoteTexture(config) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = config.bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = config.dark + '55';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 130; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * canvas.width, 0);
+        ctx.lineTo(Math.random() * canvas.width, canvas.height);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 20;
+      ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+      ctx.strokeStyle = config.dark;
+      ctx.lineWidth = 6;
+      ctx.strokeRect(34, 34, canvas.width - 68, canvas.height - 68);
+      ctx.fillStyle = 'rgba(255,255,255,0.42)';
+      ctx.beginPath();
+      ctx.arc(200, canvas.height / 2, 120, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = config.dark;
+      ctx.beginPath();
+      ctx.ellipse(canvas.width - 250, canvas.height / 2 + 20, 140, 160, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 140px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(config.value), canvas.width - 250, canvas.height / 2 + 20);
+      ctx.font = 'bold 50px sans-serif';
+      ctx.fillStyle = config.dark;
+      ctx.fillText('黑暗金库', canvas.width / 2, 100);
+      ctx.font = 'bold 104px sans-serif';
+      ctx.fillText(String(config.value), 200, canvas.height / 2 + 20);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return texture;
+    }
+
+    denominations.forEach(d => {
+      const texture = createBanknoteTexture(d);
+      denomMaterialsMap[d.value] = [
+        new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.82 }),
+        new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.82 }),
+        new THREE.MeshStandardMaterial({ map: texture, roughness: 0.8 }),
+        new THREE.MeshStandardMaterial({ map: texture, roughness: 0.8 }),
+        new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.82 }),
+        new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.82 })
+      ];
+    });
+
+    function getBillBreakdown(amount) {
+      let remaining = Math.floor(amount);
+      const breakdown = [];
+      for (const d of denominations) {
+        const count = Math.floor(remaining / d.value);
+        if (count > 0) {
+          breakdown.push({ value: d.value, count, color: d.dark });
+          remaining -= count * d.value;
+        }
+      }
+      return breakdown;
+    }
+
+    function clearVault() {
+      vaultData.forEach(data => scene.remove(data.mesh));
+      vaultData = [];
+      actionQueue.length = 0;
+      activeEffects.forEach(effect => {
+        scene.remove(effect.mesh);
+        effect.mesh.material.forEach(m => m.dispose());
+        effect.particles.forEach(p => {
+          scene.remove(p);
+          p.geometry.dispose();
+          p.material.dispose();
+        });
+      });
+      activeEffects = [];
+      isQueueRunning = false;
+    }
+
+    function buildMoneyVaultFromBreakdown(breakdown, playIncome = false) {
+      clearVault();
+      el.layerList.innerHTML = '';
+      if (!breakdown.length) {
+        updateStatsUI();
+        renderLayers();
+        return;
+      }
+
+      let totalWidth = 0;
+      const pileWidths = breakdown.map((b, idx) => {
+        const width = Math.min(Math.ceil(b.count / 100), 5) * 1.65 - 0.1;
+        totalWidth += width + (idx < breakdown.length - 1 ? 0.95 : 0);
+        return width;
+      });
+
+      let startX = -totalWidth / 2;
+      const dummy = new THREE.Object3D();
+
+      breakdown.forEach((b, index) => {
+        const mesh = new THREE.InstancedMesh(billGeo, denomMaterialsMap[b.value], b.count);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        const maxCols = 5;
+        const maxRows = 5;
+        const actualCols = Math.min(Math.ceil(b.count / 100), maxCols);
+        const actualRows = Math.min(Math.ceil(b.count / 500), maxRows);
+        const localOffsetX = ((actualCols - 1) * 1.65) / 2;
+        const localOffsetZ = ((actualRows - 1) * 0.87) / 2;
+        const pileCenterX = startX + pileWidths[index] / 2;
+
+        for (let i = 0; i < b.count; i++) {
+          const layer = Math.floor(i / 2500);
+          const col = Math.floor(i / 100) % 5;
+          const row = Math.floor(i / 500) % 5;
+          dummy.position.set(
+            pileCenterX + col * 1.65 - localOffsetX,
+            0.0005 + layer * 1.02 + (i % 100) * 0.0011,
+            row * 0.87 - localOffsetZ
+          );
+          dummy.rotation.y = (Math.random() - 0.5) * 0.026;
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        scene.add(mesh);
+        vaultData.push({ value: b.value, count: b.count, logicalCount: b.count, mesh });
+        startX += pileWidths[index] + 0.95;
+      });
+
+      adjustCamera();
+      updateStatsUI();
+      renderLayers();
+      if (playIncome) playTone('income');
+    }
+
+    function buildMoneyVault(totalAmount, playIncome = false) {
+      buildMoneyVaultFromBreakdown(getBillBreakdown(totalAmount), playIncome);
+    }
+
+    function adjustCamera() {
+      const totalCount = vaultData.reduce((sum, v) => sum + v.count, 0);
+      const heightBoost = Math.min(5.5, (totalCount / 10000) * 1.2);
+      camera.position.set(0, 5.4 + heightBoost, 9.2 + heightBoost);
+      controls.target.set(0, 0.9 + heightBoost * 0.22, 0);
+      controls.update();
+    }
+
+    function triggerDarknessEffect(value) {
+      const layer = vaultData.find(v => v.value === value);
+      if (!layer || layer.count <= 0) return;
+
+      const targetIndex = layer.count - 1;
+      const matrix = new THREE.Matrix4();
+      layer.mesh.getMatrixAt(targetIndex, matrix);
+      layer.count -= 1;
+      layer.mesh.count = layer.count;
+      layer.mesh.instanceMatrix.needsUpdate = true;
+
+      const transparentMats = denomMaterialsMap[value].map(material => {
+        const clone = material.clone();
+        clone.transparent = true;
+        clone.depthWrite = false;
+        return clone;
+      });
+      const singleBill = new THREE.Mesh(billGeo, transparentMats);
+      singleBill.applyMatrix4(matrix);
+      scene.add(singleBill);
+
+      const particles = [];
+      const pGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
+      for (let i = 0; i < 12; i++) {
+        const mat = new THREE.MeshBasicMaterial({ color: 0x8d49ff, transparent: true, opacity: 0.82 });
+        const p = new THREE.Mesh(pGeo, mat);
+        p.position.setFromMatrixPosition(matrix);
+        p.position.x += (Math.random() - 0.5) * 1.5;
+        p.position.z += (Math.random() - 0.5) * 0.8;
+        p.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.04, Math.random() * 0.08, (Math.random() - 0.5) * 0.04);
+        scene.add(p);
+        particles.push(p);
+      }
+
+      activeEffects.push({ mesh: singleBill, particles, life: 1 });
+      playTone('expense');
+      updateStatsUI();
+      renderLayers();
+    }
+
+    function processQueue() {
+      if (!actionQueue.length) {
+        isQueueRunning = false;
+        return;
+      }
+      isQueueRunning = true;
+      triggerDarknessEffect(actionQueue.shift());
+      setTimeout(processQueue, 82 / globalSpeedMultiplier);
+    }
+
+    function enqueueSpend(values) {
+      actionQueue.push(...values);
+      if (!isQueueRunning) processQueue();
+    }
+
+    function reserveDeduction(amount) {
+      let target = Math.floor(amount);
+      const deduction = [];
+      for (const d of denominations) {
+        const layer = vaultData.find(v => v.value === d.value);
+        if (!layer) continue;
+        while (target >= d.value && layer.logicalCount > 0) {
+          target -= d.value;
+          layer.logicalCount -= 1;
+          deduction.push(d.value);
+        }
+      }
+      if (target > 0) {
+        deduction.forEach(value => {
+          const layer = vaultData.find(v => v.value === value);
+          if (layer) layer.logicalCount += 1;
+        });
+        return null;
+      }
+      return deduction;
+    }
+
+    function mergeBreakdowns(...groups) {
+      const counts = new Map();
+      groups.flat().forEach(item => {
+        counts.set(item.value, (counts.get(item.value) || 0) + item.count);
+      });
+      return denominations
+        .map(d => ({ value: d.value, count: counts.get(d.value) || 0, color: d.dark }))
+        .filter(item => item.count > 0);
+    }
+
+    function prepareDeduction(amount) {
+      const direct = reserveDeduction(amount);
+      if (direct) return direct;
+
+      const remaining = state.balance - amount;
+      if (remaining < 0) return null;
+
+      const rearranged = mergeBreakdowns(getBillBreakdown(remaining), getBillBreakdown(amount));
+      buildMoneyVaultFromBreakdown(rearranged, false);
+      return reserveDeduction(amount);
+    }
+
+    // ==================== UI RENDERING ====================
+    function updateStatsUI() {
+      const physicalBalance = vaultData.reduce((sum, v) => sum + v.value * v.count, 0);
+      const physicalBills = vaultData.reduce((sum, v) => sum + v.count, 0);
+      const queuedValue = actionQueue.reduce((sum, value) => sum + value, 0);
+      el.billTotal.textContent = `${physicalBills.toLocaleString('zh-CN')} 张`;
+      el.sceneStats.innerHTML = `<strong>物理金库</strong><br>可见余额 ${money.format(physicalBalance)} | 待消失 ${money.format(queuedValue)}`;
+    }
+
+    function renderAccountUI() {
+      el.balance.textContent = money.format(state.balance);
+      const month = monthlyTransactions();
+      const income = month.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+      const expense = month.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0);
+      el.monthIncome.textContent = money.format(income);
+      el.monthExpense.textContent = money.format(expense);
+      el.monthNet.textContent = money.format(income - expense);
+      el.monthNet.style.color = income - expense >= 0 ? 'var(--money)' : '#ff7a7a';
+      el.monthLabel.textContent = formatMonth(state.currentMonth);
+    }
+
+    function renderCategoryOptions() {
+      const cats = transactionMode === 'expense' ? state.categories : state.incomeCategories;
+      el.category.innerHTML = cats.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    }
+
+    function renderEditCategoryOptions() {
+      const editCategory = document.getElementById('edit-category');
+      if (!editCategory) return;
+      const allCats = [...state.categories, ...state.incomeCategories];
+      const unique = [...new Map(allCats.map(c => [c.name, c])).values()];
+      editCategory.innerHTML = unique.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    }
+
+    function renderBudgets() {
+      const spendMap = categorySpendMap();
+      el.budgetList.innerHTML = state.categories.map(c => {
+        const spent = spendMap[c.name] || 0;
+        const budget = Math.max(0, Number(state.budgets[c.name]) || 0);
+        const pct = budget > 0 ? Math.min(100, Math.round(spent / budget * 100)) : 0;
+        const over = budget > 0 && spent > budget;
+        return `
+          <div class="budget-item">
+            <div class="budget-top">
+              <div class="budget-name"><span class="swatch" style="background:${c.color};display:inline-block;margin-right:6px;"></span>${escapeHtml(c.name)}</div>
+              <div class="budget-value">${money.format(spent)} / ${money.format(budget)}</div>
+            </div>
+            <div class="progress"><div class="progress-bar" style="width:${pct}%;background:${over ? 'var(--danger)' : c.color};"></div></div>
+            <div class="budget-edit">
+              <input type="number" min="0" step="100" value="${budget}" data-budget="${escapeHtml(c.name)}" aria-label="${escapeHtml(c.name)}预算">
+              <button type="button" data-save-budget="${escapeHtml(c.name)}"><i data-lucide="check"></i></button>
+            </div>
+          </div>`;
+      }).join('');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function renderLayers() {
+      if (!vaultData.length) {
+        el.layerList.innerHTML = '<div class="empty-cta">💰 金库为空<br><span class="cta-hint" onclick="document.getElementById(\'income-tab\').click();document.getElementById(\'amount-input\').focus()">记一笔收入，纸币将在此可见 →</span></div>';
+        return;
+      }
+      el.layerList.innerHTML = vaultData.map(v => {
+        const denom = denominations.find(d => d.value === v.value);
+        return `
+          <div class="layer-item" data-value="${v.value}">
+            <div class="layer-left">
+              <span class="swatch" style="background:${denom.dark}"></span>
+              <span>${v.value} 元图层</span>
+            </div>
+            <strong>x ${v.count.toLocaleString('zh-CN')}</strong>
+          </div>`;
+      }).join('');
+    }
+
+    function renderLedger() {
+      const query = el.search.value.trim().toLowerCase();
+      const dateFrom = el.dateFrom.value;
+      const dateTo = el.dateTo.value;
+      const filtered = transactions
+        .slice()
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .filter(tx => {
+          if (query && !`${tx.category} ${tx.note || ''} ${tx.date}`.toLowerCase().includes(query)) return false;
+          if (dateFrom && tx.date < dateFrom) return false;
+          if (dateTo && tx.date > dateTo) return false;
+          return true;
+        });
+
+      if (!filtered.length) {
+        const hasFilters = query || dateFrom || dateTo;
+        el.ledgerList.innerHTML = hasFilters
+          ? '<div class="empty-cta">🔍 没有匹配的记录<br><span class="cta-hint" onclick="document.getElementById(\'clear-search-btn\').click()">清除筛选条件</span></div>'
+          : '<div class="empty-cta">📜 还没有流水记录<br><span class="cta-hint" onclick="document.getElementById(\'amount-input\').focus()">记第一笔支出，开始使用吧 →</span></div>';
+        return;
+      }
+
+      el.ledgerList.innerHTML = filtered.map(tx => {
+        const sign = tx.type === 'expense' ? '-' : '+';
+        const amountClass = tx.type === 'expense' ? 'amount-expense' : 'amount-income';
+        const note = tx.note ? ` · ${escapeHtml(tx.note)}` : '';
+        return `
+          <div class="tx-item" data-tx-id="${tx.id}">
+            <div class="tx-main">
+              <div class="tx-title">${escapeHtml(tx.category)}</div>
+              <div class="${amountClass}">${sign}${money.format(tx.amount)}</div>
+            </div>
+            <div class="tx-meta">
+              <span>${tx.date}${note}</span>
+              <span class="tx-actions">
+                <button class="btn-edit" data-edit="${tx.id}" title="编辑"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>
+                <button class="btn-del" data-delete="${tx.id}" title="删除"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>
+              </span>
+            </div>
+          </div>`;
+      }).join('');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function renderPieChart() {
+      const canvas = el.pieCanvas;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const spendMap = categorySpendMap();
+      const entries = state.categories
+        .map(c => ({ name: c.name, color: c.color, value: spendMap[c.name] || 0 }))
+        .filter(e => e.value > 0)
+        .sort((a, b) => b.value - a.value);
+
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.parentElement.clientWidth - 16;
+      const h = 200;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.scale(dpr, dpr);
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (!entries.length) {
+        ctx.fillStyle = 'var(--muted)';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#a8afb7';
+        ctx.fillText('记一笔支出来查看分布', w / 2, h / 2);
+        return;
+      }
+
+      const total = entries.reduce((s, e) => s + e.value, 0);
+      const cx = h / 2;
+      const cy = h / 2;
+      const radius = Math.min(h / 2 - 10, 70);
+      let startAngle = -Math.PI / 2;
+
+      entries.forEach(e => {
+        const sliceAngle = (e.value / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, startAngle, startAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = e.color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(16,17,20,0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        startAngle += sliceAngle;
+      });
+
+      // Center hole
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(20,22,27,0.9)';
+      ctx.fill();
+      ctx.fillStyle = '#f2f4f5';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`¥${total.toLocaleString('zh-CN')}`, cx, cy);
+
+      // Legend
+      const legendX = h + 5;
+      let legendY = 10;
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      entries.forEach(e => {
+        const pct = ((e.value / total) * 100).toFixed(1);
+        ctx.fillStyle = e.color;
+        ctx.fillRect(legendX, legendY - 4, 10, 10);
+        ctx.fillStyle = '#a8afb7';
+        ctx.fillText(`${e.name} ${pct}%`, legendX + 14, legendY + 1);
+        legendY += 18;
+      });
+    }
+
+    function renderTrendChart() {
+      const canvas = el.trendCanvas;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.parentElement.clientWidth - 16;
+      const h = 130;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.scale(dpr, dpr);
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Get last 6 months data
+      const months = [];
+      const [y, m] = state.currentMonth.split('-').map(Number);
+      for (let i = 5; i >= 0; i--) {
+        let mm = m - i;
+        let yy = y;
+        while (mm < 1) { mm += 12; yy -= 1; }
+        const key = `${yy}-${String(mm).padStart(2, '0')}`;
+        months.push(key);
+      }
+
+      const monthData = months.map(key => {
+        const txs = transactions.filter(tx => tx.date && tx.date.startsWith(key));
+        const income = txs.filter(tx => tx.type === 'income').reduce((s, tx) => s + tx.amount, 0);
+        const expense = txs.filter(tx => tx.type === 'expense').reduce((s, tx) => s + tx.amount, 0);
+        return { key, income, expense };
+      });
+
+      const hasData = monthData.some(d => d.income > 0 || d.expense > 0);
+      if (!hasData) {
+        ctx.fillStyle = '#a8afb7';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('多记几个月就能看到趋势', w / 2, h / 2);
+        return;
+      }
+
+      const maxVal = Math.max(100, ...monthData.map(d => Math.max(d.income, d.expense))) * 1.2;
+      const pad = { top: 10, right: 10, bottom: 25, left: 45 };
+      const chartW = w - pad.left - pad.right;
+      const chartH = h - pad.top - pad.bottom;
+      const barGap = 3;
+      const groupW = chartW / 6;
+      const barW = (groupW - barGap * 3) / 2;
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const yPos = pad.top + (chartH / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, yPos);
+        ctx.lineTo(w - pad.right, yPos);
+        ctx.stroke();
+        ctx.fillStyle = '#a8afb7';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(maxVal * (1 - i / 4)).toLocaleString('zh-CN'), pad.left - 5, yPos + 3);
+      }
+
+      // Bars
+      monthData.forEach((d, i) => {
+        const gx = pad.left + groupW * i + barGap;
+        const incomeH = (d.income / maxVal) * chartH;
+        const expenseH = (d.expense / maxVal) * chartH;
+
+        // Income bar
+        ctx.fillStyle = '#3ddc84';
+        ctx.fillRect(gx, pad.top + chartH - incomeH, barW, incomeH);
+
+        // Expense bar
+        ctx.fillStyle = '#ff7a7a';
+        ctx.fillRect(gx + barW + barGap, pad.top + chartH - expenseH, barW, expenseH);
+
+        // Month label
+        const [, mo] = d.key.split('-');
+        ctx.fillStyle = '#a8afb7';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${parseInt(mo)}月`, gx + barW + barGap / 2, h - 5);
+      });
+
+      // Legend
+      ctx.fillStyle = '#3ddc84';
+      ctx.fillRect(pad.left, h - 3, 8, 8);
+      ctx.fillStyle = '#a8afb7';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('收入', pad.left + 11, h + 3);
+      ctx.fillStyle = '#ff7a7a';
+      ctx.fillRect(pad.left + 36, h - 3, 8, 8);
+      ctx.fillStyle = '#a8afb7';
+      ctx.fillText('支出', pad.left + 47, h + 3);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>\"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+    }
+
+    function renderAll() {
+      renderAccountUI();
+      renderBudgets();
+      renderLedger();
+      updateStatsUI();
+      renderPieChart();
+      renderTrendChart();
+      renderEditCategoryOptions();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // ==================== MONTH NAVIGATION ====================
+    function navigateMonth(direction) {
+      const [y, m] = state.currentMonth.split('-').map(Number);
+      let newM = m + direction;
+      let newY = y;
+      while (newM < 1) { newM += 12; newY -= 1; }
+      while (newM > 12) { newM -= 12; newY += 1; }
+      state.currentMonth = `${newY}-${String(newM).padStart(2, '0')}`;
+      saveAll();
+      renderAll();
+    }
+
+    // ==================== TRANSACTION MODE ====================
+    function setMode(mode) {
+      transactionMode = mode;
+      const isExpense = mode === 'expense';
+      el.expenseTab.classList.toggle('active', isExpense);
+      el.incomeTab.classList.toggle('active', !isExpense);
+      el.submit.className = isExpense ? 'primary-expense' : 'primary-income';
+      el.submit.innerHTML = isExpense
+        ? '<i data-lucide="flame"></i>记录支出并让钱消失'
+        : '<i data-lucide="plus-circle"></i>记录收入并补充金库';
+      renderCategoryOptions();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // ==================== ADD TRANSACTION ====================
+    function addTransaction(event) {
+      if (event) event.preventDefault();
+      initAudio();
+      const amount = Math.floor(Number(el.amount.value));
+      if (!Number.isFinite(amount) || amount <= 0) return;
+      if (transactionMode === 'expense' && amount > state.balance) {
+        alert('余额不足。');
+        return;
+      }
+
+      const tx = {
+        id: crypto.randomUUID(),
+        type: transactionMode,
+        amount,
+        category: el.category.value,
+        note: el.note.value.trim(),
+        date: el.date.value || todayIso(),
+        createdAt: Date.now()
+      };
+
+      if (tx.type === 'expense') {
+        const deduction = prepareDeduction(amount);
+        if (!deduction) {
+          alert('当前纸币队列正在消失，暂时无法精确扣除这笔金额。请等动画结束或重建金库。');
+          return;
+        }
+        state.balance -= amount;
+        transactions.unshift(tx);
+        saveAll();
+        enqueueSpend(deduction);
+      } else {
+        state.balance += amount;
+        transactions.unshift(tx);
+        saveAll();
+        buildMoneyVault(state.balance, true);
+      }
+
+      el.amount.value = '';
+      el.note.value = '';
+      renderAll();
+
+      // Celebrate first expense
+      if (tx.type === 'expense' && !firstExpenseDone) {
+        firstExpenseDone = true;
+        showToast('🎉 太棒了！你看到纸币从金库中消失了吗？', 'success');
+      }
+    }
+
+    // ==================== SPEND LAYER (Context Menu) ====================
+    function spendLayer(value, count) {
+      const layer = vaultData.find(v => v.value === value);
+      if (!layer || layer.logicalCount <= 0) return;
+      const actualCount = Math.min(count, layer.logicalCount);
+      const amount = actualCount * value;
+      if (amount <= 0 || amount > state.balance) return;
+      layer.logicalCount -= actualCount;
+      state.balance -= amount;
+      transactions.unshift({
+        id: crypto.randomUUID(),
+        type: 'expense',
+        amount,
+        category: '其他',
+        note: `${value}元纸币直接消失 x${actualCount}`,
+        date: todayIso(),
+        createdAt: Date.now()
+      });
+      saveAll();
+      enqueueSpend(Array(actualCount).fill(value));
+      renderAll();
+    }
+
+    // ==================== UNDO ====================
+    function undoLatest() {
+      if (!transactions.length) return;
+      const tx = transactions.shift();
+      if (tx.type === 'expense') state.balance += tx.amount;
+      if (tx.type === 'income') state.balance = Math.max(0, state.balance - tx.amount);
+      saveAll();
+      buildMoneyVault(state.balance, false);
+      renderAll();
+    }
+
+    // ==================== EDIT TRANSACTION ====================
+    function openEditModal(txId) {
+      const tx = transactions.find(t => t.id === txId);
+      if (!tx) return;
+      editTargetId = txId;
+      document.getElementById('edit-type').value = tx.type;
+      document.getElementById('edit-amount').value = tx.amount;
+      document.getElementById('edit-category').value = tx.category;
+      document.getElementById('edit-date').value = tx.date;
+      document.getElementById('edit-note').value = tx.note || '';
+      document.getElementById('edit-modal').classList.add('show');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.remove('show');
+      editTargetId = null;
+    }
+
+    async function saveEdit(event) {
+      event.preventDefault();
+      if (!editTargetId) return;
+      const txIndex = transactions.findIndex(t => t.id === editTargetId);
+      if (txIndex === -1) return;
+
+      const oldTx = transactions[txIndex];
+      const newType = document.getElementById('edit-type').value;
+      const newAmount = Math.floor(Number(document.getElementById('edit-amount').value));
+      const newCategory = document.getElementById('edit-category').value;
+      const newDate = document.getElementById('edit-date').value;
+      const newNote = document.getElementById('edit-note').value.trim();
+
+      if (!Number.isFinite(newAmount) || newAmount <= 0) return;
+
+      // Adjust balance
+      if (oldTx.type === 'expense') state.balance += oldTx.amount;
+      if (oldTx.type === 'income') state.balance -= oldTx.amount;
+      if (newType === 'expense') state.balance -= newAmount;
+      if (newType === 'income') state.balance += newAmount;
+
+      if (state.balance < 0) {
+        alert('修改后余额为负，请检查金额。');
+        // Rollback
+        if (oldTx.type === 'expense') state.balance -= oldTx.amount;
+        if (oldTx.type === 'income') state.balance += oldTx.amount;
+        if (newType === 'expense') state.balance += newAmount;
+        if (newType === 'income') state.balance -= newAmount;
+        return;
+      }
+
+      transactions[txIndex] = {
+        ...oldTx,
+        type: newType,
+        amount: newAmount,
+        category: newCategory,
+        date: newDate,
+        note: newNote
+      };
+
+      await saveAll();
+      buildMoneyVault(state.balance, false);
+      closeEditModal();
+      renderAll();
+    }
+
+    // ==================== DELETE TRANSACTION ====================
+    async function deleteTransaction(txId) {
+      const txIndex = transactions.findIndex(t => t.id === txId);
+      if (txIndex === -1) return;
+      const tx = transactions[txIndex];
+      if (!confirm(`确定删除 ${tx.date} ${tx.category} ${money.format(tx.amount)} 这条流水吗？`)) return;
+
+      if (tx.type === 'expense') state.balance += tx.amount;
+      if (tx.type === 'income') state.balance = Math.max(0, state.balance - tx.amount);
+      transactions.splice(txIndex, 1);
+      await dbDelete(STORE_TX, txId);
+      await saveAll();
+      buildMoneyVault(state.balance, false);
+      renderAll();
+    }
+
+    // ==================== EXPORT CSV ====================
+    function exportCsv() {
+      const rows = [['date', 'type', 'category', 'amount', 'note']];
+      transactions.slice().reverse().forEach(tx => {
+        rows.push([tx.date, tx.type, tx.category, tx.amount, tx.note || '']);
+      });
+      const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `黑暗金库流水-${todayIso()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // ==================== RESET ====================
+    async function resetData() {
+      if (!confirm('清空所有记账数据并重置金库？此操作不可撤销！')) return;
+      state = defaultState();
+      transactions = [];
+      await dbClear(STORE_STATE);
+      await dbClear(STORE_TX);
+      firstExpenseDone = false;
+      await saveAll();
+      buildMoneyVault(state.balance, true);
+      renderAll();
+    }
+
+    // ==================== CATEGORY MANAGEMENT ====================
+    function openCatManager() {
+      const list = document.getElementById('cat-list');
+      list.innerHTML = state.categories.map(c => `
+        <div class="cat-item">
+          <input type="color" value="${c.color}" data-cat-color="${escapeHtml(c.name)}" title="颜色">
+          <input type="text" value="${escapeHtml(c.name)}" data-cat-name="${escapeHtml(c.name)}" maxlength="10">
+          <input type="number" value="${state.budgets[c.name] || 0}" min="0" step="100" data-cat-budget="${escapeHtml(c.name)}" title="预算" style="width:90px;">
+          <button class="btn-del" data-cat-del="${escapeHtml(c.name)}" title="删除"><i data-lucide="x" style="width:13px;height:13px;"></i></button>
+        </div>
+      `).join('');
+      if (window.lucide) window.lucide.createIcons();
+      document.getElementById('cat-modal').classList.add('show');
+    }
+
+    function closeCatManager() {
+      document.getElementById('cat-modal').classList.remove('show');
+    }
+
+    async function addCategory() {
+      const name = prompt('新分类名称：');
+      if (!name || !name.trim()) return;
+      const trimmed = name.trim();
+      if (state.categories.some(c => c.name === trimmed)) {
+        alert('分类已存在。');
+        return;
+      }
+      const colors = ['#f56f6f', '#5ca8ff', '#f4b740', '#9b6dff', '#ff7ac3', '#53d6c5', '#95d15f', '#c4cad1', '#ff8d4d', '#6de0cd'];
+      const color = colors[state.categories.length % colors.length];
+      state.categories.push({ name: trimmed, color, budget: 1000 });
+      state.budgets[trimmed] = 1000;
+      await saveAll();
+      openCatManager();
+      renderAll();
+    }
+
+    async function saveCatChanges() {
+      const items = document.querySelectorAll('#cat-list .cat-item');
+      const newCategories = [];
+      const newBudgets = {};
+      let hasError = false;
+
+      items.forEach(item => {
+        const colorInput = item.querySelector('[data-cat-color]');
+        const nameInput = item.querySelector('[data-cat-name]');
+        const budgetInput = item.querySelector('[data-cat-budget]');
+        const delBtn = item.querySelector('[data-cat-del]');
+
+        // Skip deleted (we handle via button)
+        const oldName = nameInput ? (nameInput.dataset.catName || '') : '';
+        if (!nameInput || !oldName) return;
+
+        newCategories.push({
+          name: oldName,
+          color: colorInput ? colorInput.value : '#c4cad1',
+          budget: budgetInput ? Math.max(0, Math.floor(Number(budgetInput.value) || 0)) : 1000
+        });
+        newBudgets[oldName] = budgetInput ? Math.max(0, Math.floor(Number(budgetInput.value) || 0)) : 1000;
+      });
+
+      if (!hasError && newCategories.length > 0) {
+        state.categories = newCategories.map(c => ({ name: c.name, color: c.color, budget: c.budget }));
+        state.budgets = { ...state.budgets, ...newBudgets };
+        await saveAll();
+      }
+      closeCatManager();
+      renderAll();
+    }
+
+    async function deleteCategory(name) {
+      if (!confirm(`确定删除分类"${name}"？相关的预算配置也将被移除。`)) return;
+      state.categories = state.categories.filter(c => c.name !== name);
+      delete state.budgets[name];
+      await saveAll();
+      openCatManager();
+      renderAll();
+    }
+
+    // ==================== EVENT LISTENERS ====================
+    el.expenseTab.addEventListener('click', () => setMode('expense'));
+    el.incomeTab.addEventListener('click', () => setMode('income'));
+    el.form.addEventListener('submit', addTransaction);
+    el.submit.addEventListener('click', (e) => addTransaction(e));
+
+    document.getElementById('rebuild-btn').addEventListener('click', () => {
+      buildMoneyVault(state.balance, true);
+      renderAll();
+    });
+
+    document.getElementById('undo-btn').addEventListener('click', undoLatest);
+    document.getElementById('export-btn').addEventListener('click', exportCsv);
+    document.getElementById('reset-btn').addEventListener('click', resetData);
+
+    document.getElementById('month-prev').addEventListener('click', () => navigateMonth(-1));
+    document.getElementById('month-next').addEventListener('click', () => navigateMonth(1));
+
+    document.getElementById('reset-budgets-btn').addEventListener('click', async () => {
+      state.budgets = Object.fromEntries(state.categories.map(c => [c.name, c.budget || 0]));
+      await saveAll();
+      renderAll();
+    });
+
+    document.getElementById('clear-search-btn').addEventListener('click', () => {
+      el.search.value = '';
+      el.dateFrom.value = '';
+      el.dateTo.value = '';
+      renderLedger();
+    });
+    el.search.addEventListener('input', renderLedger);
+    el.dateFrom.addEventListener('change', renderLedger);
+    el.dateTo.addEventListener('change', renderLedger);
+
+    el.speedSlider.addEventListener('input', event => {
+      globalSpeedMultiplier = Number(event.target.value);
+      el.speedVal.textContent = `${globalSpeedMultiplier.toFixed(1)}x`;
+    });
+
+    el.budgetList.addEventListener('click', async event => {
+      const button = event.target.closest('[data-save-budget]');
+      if (!button) return;
+      const name = button.dataset.saveBudget;
+      const input = el.budgetList.querySelector(`input[data-budget="${CSS.escape(name)}"]`);
+      state.budgets[name] = Math.max(0, Math.floor(Number(input.value) || 0));
+      await saveAll();
+      renderBudgets();
+    });
+
+    el.layerList.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      const item = event.target.closest('.layer-item');
+      if (!item) return;
+      const value = Number(item.dataset.value);
+      const layer = vaultData.find(v => v.value === value);
+      if (!layer || layer.logicalCount <= 0) return;
+      contextTargetValue = value;
+      el.contextMenu.style.display = 'block';
+      el.contextMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 180)}px`;
+      el.contextMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 90)}px`;
+    });
+
+    document.getElementById('menu-spend-one').addEventListener('click', () => {
+      if (contextTargetValue) spendLayer(contextTargetValue, 1);
+      el.contextMenu.style.display = 'none';
+    });
+
+    document.getElementById('menu-spend-all').addEventListener('click', () => {
+      const layer = vaultData.find(v => v.value === contextTargetValue);
+      if (layer) spendLayer(contextTargetValue, layer.logicalCount);
+      el.contextMenu.style.display = 'none';
+    });
+
+    // Ledger click delegation for edit/delete
+    el.ledgerList.addEventListener('click', event => {
+      const editBtn = event.target.closest('[data-edit]');
+      const deleteBtn = event.target.closest('[data-delete]');
+      if (editBtn) openEditModal(editBtn.dataset.edit);
+      if (deleteBtn) deleteTransaction(deleteBtn.dataset.delete);
+    });
+
+    // Edit modal
+    document.getElementById('edit-cancel').addEventListener('click', closeEditModal);
+    document.getElementById('edit-form').addEventListener('submit', saveEdit);
+    document.getElementById('edit-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeEditModal();
+    });
+
+    // Category manager
+    document.getElementById('cat-mgr-btn').addEventListener('click', openCatManager);
+    document.getElementById('cat-close').addEventListener('click', saveCatChanges);
+    document.getElementById('add-cat-btn').addEventListener('click', addCategory);
+    document.getElementById('cat-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) saveCatChanges();
+    });
+    document.getElementById('cat-list').addEventListener('click', (e) => {
+      const delBtn = e.target.closest('[data-cat-del]');
+      if (delBtn) deleteCategory(delBtn.dataset.catDel);
+    });
+
+    // Global
+    document.addEventListener('click', event => {
+      initAudio();
+      if (!event.target.closest('#context-menu')) el.contextMenu.style.display = 'none';
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoLatest(); }
+      if (e.ctrlKey && e.key === 'n') { e.preventDefault(); el.amount.focus(); }
+      if (e.key === 'Escape') {
+        closeEditModal();
+        closeCatManager();
+        el.contextMenu.style.display = 'none';
+      }
+    });
+
+    // Resize handling
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderPieChart();
+      renderTrendChart();
+    });
+
+    // ==================== THREE.JS ANIMATION LOOP ====================
+    const targetColor = new THREE.Color(0x000000);
+    const emissiveColor = new THREE.Color(0x4b1285);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      vaultRing.rotation.z += 0.0016;
+
+      for (let i = activeEffects.length - 1; i >= 0; i--) {
+        const effect = activeEffects[i];
+        effect.life -= 0.02 * globalSpeedMultiplier;
+
+        if (effect.life > 0) {
+          effect.mesh.position.y += 0.03 * globalSpeedMultiplier;
+          effect.mesh.rotation.x += 0.15 * globalSpeedMultiplier;
+          effect.mesh.rotation.z += 0.08 * globalSpeedMultiplier;
+          effect.mesh.scale.set(effect.life, effect.life, effect.life);
+          const colorLerp = Math.min(0.11 * globalSpeedMultiplier, 1);
+          const emissiveLerp = Math.min(0.06 * globalSpeedMultiplier, 1);
+          effect.mesh.material.forEach(m => {
+            m.color.lerp(targetColor, colorLerp);
+            if (m.emissive) m.emissive.lerp(emissiveColor, emissiveLerp);
+            m.opacity = effect.life;
+          });
+          effect.particles.forEach(p => {
+            p.position.x += p.velocity.x * globalSpeedMultiplier;
+            p.position.y += p.velocity.y * globalSpeedMultiplier;
+            p.position.z += p.velocity.z * globalSpeedMultiplier;
+            p.velocity.y -= 0.001 * globalSpeedMultiplier;
+            p.material.opacity = effect.life;
+            p.rotation.x += 0.1 * globalSpeedMultiplier;
+          });
+        } else {
+          scene.remove(effect.mesh);
+          effect.mesh.material.forEach(m => m.dispose());
+          effect.particles.forEach(p => {
+            scene.remove(p);
+            p.geometry.dispose();
+            p.material.dispose();
+          });
+          activeEffects.splice(i, 1);
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // ==================== ONBOARDING / HELP ====================
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 2600);
+    }
+
+    function showOnboarding() {
+      document.getElementById('onboarding-overlay').style.display = 'flex';
+    }
+
+    async function dismissOnboarding() {
+      const overlay = document.getElementById('onboarding-overlay');
+      overlay.classList.add('fade-out');
+      setTimeout(() => { overlay.style.display = 'none'; overlay.classList.remove('fade-out'); }, 360);
+      await saveAll();
+      renderAll();
+
+      // After tutorial, highlight submit and focus
+      setTimeout(() => {
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+          submitBtn.classList.add('pulse-hint');
+          setTimeout(() => submitBtn.classList.remove('pulse-hint'), 6100);
+        }
+        document.getElementById('amount-input').focus();
+      }, 400);
+    }
+
+    function showAssetInit() {
+      const overlay = document.getElementById('asset-init-overlay');
+      overlay.style.display = 'flex';
+      const input = document.getElementById('asset-init-input');
+      const confirmBtn = document.getElementById('asset-init-confirm');
+      input.value = '';
+      confirmBtn.disabled = true;
+      setTimeout(() => input.focus(), 200);
+    }
+
+    async function confirmAssetInit() {
+      const input = document.getElementById('asset-init-input');
+      const amount = Math.floor(Number(input.value));
+      if (!Number.isFinite(amount) || amount <= 0) return;
+
+      state.balance = amount;
+      state.hasInitialized = true;
+      transactions.unshift({
+        id: crypto.randomUUID(),
+        type: 'income',
+        amount,
+        category: '工资',
+        note: '初始化资产',
+        date: todayIso(),
+        createdAt: Date.now()
+      });
+      await saveAll();
+
+      const overlay = document.getElementById('asset-init-overlay');
+      overlay.classList.add('fade-out');
+      setTimeout(() => { overlay.style.display = 'none'; overlay.classList.remove('fade-out'); }, 360);
+
+      buildMoneyVault(state.balance, true);
+      renderAll();
+      showToast('金库已装满！', 'success');
+
+      // Show tutorial choice dialog after asset init
+      setTimeout(() => showTutorialChoice(), 500);
+    }
+
+    async function skipAssetInit() {
+      state.hasInitialized = true;
+      await saveAll();
+
+      const overlay = document.getElementById('asset-init-overlay');
+      overlay.classList.add('fade-out');
+      setTimeout(() => { overlay.style.display = 'none'; overlay.classList.remove('fade-out'); }, 360);
+
+      buildMoneyVault(0, false);
+      renderAll();
+
+      // Show tutorial choice dialog
+      setTimeout(() => showTutorialChoice(), 400);
+    }
+
+    // ==================== TUTORIAL CHOICE ====================
+    function showTutorialChoice() {
+      document.getElementById('tutorial-choice-overlay').style.display = 'flex';
+    }
+
+    async function doTutorial() {
+      const overlay = document.getElementById('tutorial-choice-overlay');
+      overlay.classList.add('fade-out');
+      setTimeout(() => { overlay.style.display = 'none'; overlay.classList.remove('fade-out'); }, 360);
+      state.hasVisited = true;
+      await saveAll();
+
+      setTimeout(() => showOnboarding(), 400);
+    }
+
+    async function skipTutorial() {
+      state.hasVisited = true;
+      await saveAll();
+
+      const overlay = document.getElementById('tutorial-choice-overlay');
+      overlay.classList.add('fade-out');
+      setTimeout(() => { overlay.style.display = 'none'; overlay.classList.remove('fade-out'); }, 360);
+
+      renderAll();
+
+      setTimeout(() => {
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+          submitBtn.classList.add('pulse-hint');
+          setTimeout(() => submitBtn.classList.remove('pulse-hint'), 6100);
+        }
+        document.getElementById('amount-input').focus();
+        showToast('点击左侧按钮，记录第一笔支出吧', 'success');
+      }, 400);
+    }
+
+    function toggleHelp() {
+      const drawer = document.getElementById('help-drawer');
+      drawer.classList.toggle('show');
+    }
+
+    // ==================== INIT ====================
+    async function init() {
+      await openDB();
+      await loadAll();
+      renderCategoryOptions();
+      renderEditCategoryOptions();
+      setMode('expense');
+      buildMoneyVault(state.balance, false);
+      renderAll();
+      animate();
+
+      // First visit: show asset init directly
+      setTimeout(() => {
+        if (!state.hasInitialized) {
+          showAssetInit();
+        }
+      }, 600);
+
+      // Wire up onboarding events
+      document.getElementById('onboarding-start').addEventListener('click', dismissOnboarding);
+      document.getElementById('onboarding-skip').addEventListener('click', dismissOnboarding);
+      document.getElementById('help-btn').addEventListener('click', toggleHelp);
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#help-btn') && !e.target.closest('#help-drawer')) {
+          document.getElementById('help-drawer').classList.remove('show');
+        }
+      });
+
+      // Wire up asset init events
+      const assetInput = document.getElementById('asset-init-input');
+      const assetConfirm = document.getElementById('asset-init-confirm');
+      assetInput.addEventListener('input', () => {
+        const val = Math.floor(Number(assetInput.value));
+        assetConfirm.disabled = !Number.isFinite(val) || val <= 0;
+      });
+      assetInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !assetConfirm.disabled) confirmAssetInit();
+      });
+      assetConfirm.addEventListener('click', confirmAssetInit);
+      document.getElementById('asset-init-skip').addEventListener('click', skipAssetInit);
+
+      // Quick amount buttons
+      document.querySelectorAll('#asset-init-overlay [data-quick]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          assetInput.value = btn.dataset.quick;
+          assetConfirm.disabled = false;
+          assetInput.focus();
+        });
+      });
+
+      // Wire up tutorial choice events
+      document.getElementById('tutorial-choice-yes').addEventListener('click', doTutorial);
+      document.getElementById('tutorial-choice-no').addEventListener('click', skipTutorial);
+    }
+
+    init();
+  </script>
+</body>
+</html>
